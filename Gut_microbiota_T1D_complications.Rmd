@@ -1,0 +1,160 @@
+---
+title: "MVMR of E. coprostanoligenes group on T1D complications controlling for T1D"
+author: "LJW"
+date: "2024-06-12"
+output: html_document
+---
+
+```{r import packages and read T1D complications datasets}
+library(dplyr)
+library(ieugwasr)
+library(TwoSampleMR)
+library(MVMR)
+library(MendelianRandomization)
+
+#### read T1D complications datasets ###
+#### These datasets were downloaded from FinnGen R8 version (https://www.finngen.fi/en/access_results)
+
+## T1D with renal complications
+T1D_renal <- read.table("C:\\Users\\Ludan\\Desktop\\Diabetic complication\\summary_stats_finngen_R8_E4_DM1REN\\summary_stats_finngen_R8_E4_DM1REN.txt", header = FALSE, sep = "\t")
+
+colnames(T1D_renal) <- c("chr","pos","ref","alt","rsid","nearest_genes","pval","mlogp","beta","se","eaf","af_alt_cases","af alt controls")
+
+## T1D with neurological complications
+T1D_NEU <- read.table(gzfile("F:/gut_DM1_complications/summary_stats_finngen_R8_E4_DM1NEU.gz"), header = FALSE, sep = "\t")
+
+colnames(T1D_NEU) <- c("chr","pos","ref","alt","rsid","nearest_genes","pval","mlogp","beta","se","eaf","af_alt_cases","af alt controls")
+
+## T1D with ophthalmic complications
+T1D_OPH <- read.table(gzfile("F:/gut_DM1_complications/summary_stats_finngen_R8_E4_DM1OPTH.gz"), header = FALSE, sep = "\t")
+
+colnames(T1D_OPH) <- c("chr","pos","ref","alt","rsid","nearest_genes","pval","mlogp","beta","se","eaf","af_alt_cases","af alt controls")
+
+```
+
+```{r selection IVs of T1D and E. coprostanoligenes group for MVMR}
+exposure_Gut <- extract_instruments("ebi-a-GCST90016997", p1 = 1e-5, r2 = 0.001, kb=10000)
+exposure_T1D <- extract_instruments("ebi-a-GCST90000529", p1 = 5e-8, r2 = 0.001, kb=10000)
+combine_SNP <- c(exposure_Gut$SNP,exposure_T1D$SNP)
+Gut_Out <- extract_outcome_data(combine_SNP,"ebi-a-GCST90016997")
+T1D_Out <- extract_outcome_data(combine_SNP,"ebi-a-GCST90000529")
+
+EXP_Gut_T1D <- merge(Gut_Out,T1D_Out,by="SNP",all = F, suffixes=c(".Gut",".T1D"))
+```
+
+```{MVMR analyses of E. coprostanoligenes group on T1D with renal complications controlling for T1D}
+T1DR_Out <- T1D_renal[T1D_renal$rsid%in%EXP_Gut_T1D$SNP, ]
+
+Gut_T1D_T1DR <- merge(EXP_Gut_T1D,T1DR_Out,by.x="SNP",by.y="rsid",all=F,suffixes=c("",".Out"))
+
+Result <- Gut_T1D_T1DR
+bx <- as.matrix(Result[,c('beta.outcome.Gut', 'beta.outcome.T1D')])
+bxse <- as.matrix(Result[,c('se.outcome.Gut', 'se.outcome.T1D')])
+by <- Result$beta
+byse <- Result$se
+
+
+T1DR_mvmr <- mr_mvinput(bx=bx, bxse=bxse,by=by, byse=byse,
+                       exposure=c('Gut','T1D'),
+                       outcome='T1DR',
+                       snps=Result[,'SNP'])
+#### MVMR-IVW
+mr_mvivw_model <- mr_mvivw(T1DR_mvmr, model='random')
+mr_mvivw_model
+exp(mr_mvivw_model@Estimate)
+exp(mr_mvivw_model@CILower)
+exp(mr_mvivw_model@CIUpper)
+
+#### MVMR-Egger
+mr_mvegger_model <- mr_mvegger(T1DR_mvmr, orientate = 1,correl = FALSE,distribution = "normal",alpha = 0.05)
+mr_mvegger_model
+exp(mr_mvegger_model@Estimate)
+exp(mr_mvegger_model@CILower.Est)
+exp(mr_mvegger_model@CIUpper.Est)
+
+#### MVMR-median
+mr_mvmedian_model <- mr_mvmedian(T1DR_mvmr)
+mr_mvmedian_model
+exp(mr_mvmedian_model@Estimate)
+exp(mr_mvmedian_model@CILower)
+exp(mr_mvmedian_model@CIUpper)
+```
+
+
+```{MVMR analyses of E. coprostanoligenes group on T1D with neurological complications controlling for T1D}
+
+T1DNEU_Out <- T1D_NEU[T1D_NEU$rsid%in%EXP_Gut_T1D$SNP, ]
+
+Gut_T1D_T1DNEU <- merge(EXP_Gut_T1D,T1DNEU_Out,by.x="SNP",by.y="rsid",all=F,suffixes=c("",".Out"))
+
+Result <- Gut_T1D_T1DNEU
+bx <- as.matrix(Result[,c('beta.outcome.Gut', 'beta.outcome.T1D')])
+bxse <- as.matrix(Result[,c('se.outcome.Gut', 'se.outcome.T1D')])
+by <- Result$beta
+byse <- Result$se
+
+T1DNEU_mvmr <- mr_mvinput(bx=bx, bxse=bxse,by=by, byse=byse,
+                       exposure=c('Gut','T1D'),
+                       outcome='T1DNEU',
+                       snps=Result[,'SNP'])
+
+#### MVMR-IVW
+mr_mvivw_model <- mr_mvivw(T1DNEU_mvmr, model='random')
+mr_mvivw_model
+exp(mr_mvivw_model@Estimate)
+exp(mr_mvivw_model@CILower)
+exp(mr_mvivw_model@CIUpper)
+
+#### MVMR-Egger
+mr_mvegger_model <- mr_mvegger(T1DNEU_mvmr, orientate = 1,correl = FALSE,distribution = "normal",alpha = 0.05)
+mr_mvegger_model
+exp(mr_mvegger_model@Estimate)
+exp(mr_mvegger_model@CILower.Est)
+exp(mr_mvegger_model@CIUpper.Est)
+
+#### MVMR-median
+mr_mvmedian_model <- mr_mvmedian(T1DNEU_mvmr)
+mr_mvmedian_model
+exp(mr_mvmedian_model@Estimate)
+exp(mr_mvmedian_model@CILower)
+exp(mr_mvmedian_model@CIUpper)
+```
+
+
+```{r MVMR analyses of E. coprostanoligenes group on T1D with ophthalmic complications controlling for T1D}
+T1DOPH_Out <- T1D_OPH[T1D_OPH$rsid%in%EXP_Gut_T1D$SNP, ]
+
+Gut_T1D_T1DOPH <- merge(EXP_Gut_T1D,T1DOPH_Out,by.x="SNP",by.y="rsid",all=F,suffixes=c("",".Out"))
+
+Result <- Gut_T1D_T1DOPH
+bx <- as.matrix(Result[,c('beta.outcome.Gut', 'beta.outcome.T1D')])
+bxse <- as.matrix(Result[,c('se.outcome.Gut', 'se.outcome.T1D')])
+by <- Result$beta
+byse <- Result$se
+
+T1DOPH_mvmr <- mr_mvinput(bx=bx, bxse=bxse,by=by, byse=byse,
+                          exposure=c('Gut','T1D'),
+                          outcome='T1DOPH',
+                          snps=Result[,'SNP'])
+
+#### MVMR-IVW
+mr_mvivw_model <- mr_mvivw(T1DOPH_mvmr, model='random')
+mr_mvivw_model
+exp(mr_mvivw_model@Estimate)
+exp(mr_mvivw_model@CILower)
+exp(mr_mvivw_model@CIUpper)
+
+#### MVMR-Egger
+mr_mvegger_model <- mr_mvegger(T1DOPH_mvmr, orientate = 1,correl = FALSE,distribution = "normal",alpha = 0.05)
+mr_mvegger_model
+exp(mr_mvegger_model@Estimate)
+exp(mr_mvegger_model@CILower.Est)
+exp(mr_mvegger_model@CIUpper.Est)
+
+#### MVMR-median
+mr_mvmedian_model <- mr_mvmedian(T1DOPH_mvmr)
+mr_mvmedian_model
+exp(mr_mvmedian_model@Estimate)
+exp(mr_mvmedian_model@CILower)
+exp(mr_mvmedian_model@CIUpper)
+```
